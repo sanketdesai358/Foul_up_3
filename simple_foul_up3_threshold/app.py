@@ -7,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from model import Inputs, sweep
+from model import Inputs, TRAILING_FOUL_BACK_UNDER, sweep
 
 
 SMOOTH_SECONDS = 5
@@ -30,7 +30,9 @@ st.markdown(
 
     The headline windows use a smoothed foul edge so one noisy second does not become
     a fake rule. The faint lines show the raw simulation points; the thicker lines and
-    shaded bands show the more stable decision signal.
+    shaded bands show the more stable decision signal. When the opponent has the ball
+    and the shot clock is effectively off, the trailing team is treated as needing to
+    foul; the app labels that as a must-foul zone rather than a strategic edge.
     """
 )
 
@@ -86,11 +88,19 @@ def max_window_gain(times, values, windows: list[tuple[int, int]]) -> float | No
     return best
 
 
+def strategic_down_windows(times, values) -> list[tuple[int, int]]:
+    return [
+        (start, end)
+        for start, end in positive_windows(times, values)
+        if start > TRAILING_FOUL_BACK_UNDER
+    ]
+
+
 def render_margin_tab(margin: int, result: dict) -> None:
     up_smooth = moving_average(result["up_delta"])
     down_smooth = moving_average(result["down_delta"])
     up_windows = positive_windows(result["time"], up_smooth)
-    down_windows = positive_windows(result["time"], down_smooth)
+    down_windows = strategic_down_windows(result["time"], down_smooth)
     up_gain = max_window_gain(result["time"], up_smooth, up_windows)
     down_gain = max_window_gain(result["time"], down_smooth, down_windows)
 
@@ -101,14 +111,15 @@ def render_margin_tab(margin: int, result: dict) -> None:
         "" if up_gain is None else f"Best smoothed gain {up_gain:+.2%}",
     )
     right.metric(
-        f"Down {margin}, opponent ball: stable foul windows",
-        format_windows(down_windows),
-        "" if down_gain is None else f"Best smoothed gain {down_gain:+.2%}",
+        f"Down {margin}, opponent ball",
+        f"Must foul under {int(TRAILING_FOUL_BACK_UNDER)}s",
+        "No optional edge" if down_gain is None else f"Optional edge {format_windows(down_windows)}",
     )
     st.caption(
         f"Windows use a {SMOOTH_SECONDS}-second moving average and require at least "
         f"{MIN_STABLE_EDGE:.1%} foul edge for {MIN_WINDOW_SECONDS}+ seconds. "
-        "The faint lines below are raw one-second simulation points."
+        f"Under {int(TRAILING_FOUL_BACK_UNDER)} seconds, the trailing-team DEFEND baseline "
+        "also fouls because the shot clock can end the game. The faint lines below are raw one-second simulation points."
     )
 
     fig = go.Figure()
@@ -141,6 +152,15 @@ def render_margin_tab(margin: int, result: dict) -> None:
         line={"color": "#66b2ff", "width": 3},
     )
     fig.add_hline(y=0, line_dash="dash", line_color="gray")
+    fig.add_vrect(
+        x0=1,
+        x1=TRAILING_FOUL_BACK_UNDER,
+        fillcolor="#ffb000",
+        opacity=0.08,
+        line_width=0,
+        annotation_text="trailer must foul",
+        annotation_position="top left",
+    )
     for start, end in up_windows:
         fig.add_vrect(x0=start, x1=end, fillcolor="#0066cc", opacity=0.08, line_width=0)
     for start, end in down_windows:

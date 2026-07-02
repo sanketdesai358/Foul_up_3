@@ -16,7 +16,7 @@ PUTBACK_TIE_RATE = 0.30  # Converted putbacks are 3-point tie plays this often.
 TRAILING_TWO_PCT = 0.50  # Down 1 or 2, trailing team attacks for a two.
 LEADING_TWO_PCT = 0.15  # Clock-kill offense ends in a low-value late-clock two.
 INBOUND_TURNOVER = 0.05  # Pressure turnover after the leader receives the ball.
-TRAILING_FOUL_BACK_UNDER = 30.0  # Trailer fouls the leader below this time.
+TRAILING_FOUL_BACK_UNDER = 24.0  # Shot clock off: trailer must foul the leader.
 OT_WIN_PROB = 0.50  # Tied at 0:00 goes to overtime coin flip.
 MAX_EVENTS = 30
 
@@ -102,7 +102,7 @@ def simulate_down_margin(seconds: int, policy: str, inputs: Inputs, margin: int)
     """Win probability for the team trailing by `margin` with the leader on ball.
 
     FOUL means the trailing team fouls the leader immediately. DEFEND means it
-    plays for a stop until the under-30-seconds foul-back rule applies.
+    plays for a stop until the under-24-seconds must-foul rule applies.
     """
 
     rng = np.random.default_rng(inputs.seed + margin * 10_000 + seconds * 103 + (2 if policy == "foul" else 3))
